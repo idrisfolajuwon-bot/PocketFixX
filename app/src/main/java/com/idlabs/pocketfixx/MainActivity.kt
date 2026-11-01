@@ -47,7 +47,7 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        val scroll = ScrollView(this).apply { fillViewport = true }
+        val scroll = ScrollView(this).apply { setFillViewport(true) }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(20, 18, 20, 28)
