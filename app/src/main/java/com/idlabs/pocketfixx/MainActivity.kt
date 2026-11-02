@@ -17,6 +17,9 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var content: LinearLayout
@@ -126,6 +129,8 @@ class MainActivity : Activity() {
         toolRow(tools, "⌁", "Network status", "Connection type and Android internet check") { showNetwork() }
         separator(tools)
         toolRow(tools, "✦", "Full diagnostic report", "Combine current readings into one report") { runDiagnostics() }
+        separator(tools)
+        toolRow(tools, "▤", "Diagnostic history", "View your saved reports on this phone") { showHistory() }
         separator(tools)
         toolRow(tools, "⌖", "Phone finder — safe mode", "No tracking without clear owner consent") {
             show("Phone Finder", "This version does not track another person. Any future sharing feature must be enabled by the device owner with clear consent. For this phone, use Android Find Hub / Find My Device with the owner's Google account.")
@@ -379,6 +384,51 @@ class MainActivity : Activity() {
             "Android: ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}\n\n" +
             "HEAT INTERPRETATION\nBattery sensor: $tempLine\n$heatNote\n\n" +
             "This is a screening report, not an exact diagnosis. Battery temperature is not CPU temperature."
+        saveHistory(report)
         show("Full Diagnostic Report", report)
+    }
+
+    private fun saveHistory(report: String) {
+        val prefs = getSharedPreferences("pocketfix_history", MODE_PRIVATE)
+        val key = "report_${System.currentTimeMillis()}"
+        prefs.edit().putString(key, report).apply()
+        val old = prefs.all.keys.filter { it.startsWith("report_") }.sorted()
+        if (old.size > 20) {
+            prefs.edit().apply {
+                old.take(old.size - 20).forEach { remove(it) }
+            }.apply()
+        }
+    }
+
+    private fun showHistory() {
+        val prefs = getSharedPreferences("pocketfix_history", MODE_PRIVATE)
+        val entries = prefs.all.entries
+            .filter { it.key.startsWith("report_") && it.value is String }
+            .sortedByDescending { it.key }
+        if (entries.isEmpty()) {
+            show("Diagnostic History", "No reports saved yet. Run Full Diagnostic Report to create your first entry. Reports stay on this phone.")
+            return
+        }
+        val dates = entries.map { entry ->
+            val millis = entry.key.removePrefix("report_").toLongOrNull() ?: 0L
+            SimpleDateFormat("dd MMM yyyy • hh:mm a", Locale.getDefault()).format(Date(millis))
+        }.toTypedArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Saved Diagnostic Reports")
+            .setItems(dates) { _, which ->
+                val report = entries[which].value as String
+                show(dates[which], report)
+            }
+            .setNegativeButton("Close", null)
+            .setNeutralButton("Clear history") { _, _ ->
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Clear saved reports?")
+                    .setMessage("This deletes only PocketFix X diagnostic history stored on this phone.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Clear") { _, _ ->
+                        prefs.edit().clear().apply()
+                        show("History cleared", "Your saved diagnostic reports have been cleared.")
+                    }.show()
+            }.show()
     }
 }
